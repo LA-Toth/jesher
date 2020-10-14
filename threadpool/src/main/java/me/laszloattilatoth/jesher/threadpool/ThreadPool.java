@@ -71,6 +71,7 @@ public class ThreadPool {
         private final Map<Task, Set<Task>> tasksAfter = new HashMap<>();
         private final Map<Task, Set<Task>> taskDeps = new HashMap<>();
         private final WeakReference<ThreadPool> pool;
+        private final Set<Task> emptyTaskSet = new HashSet<>();
 
         private TaskManager(ThreadPool pool) {this.pool = new WeakReference<>(pool);}
 
@@ -95,7 +96,7 @@ public class ThreadPool {
 
         synchronized void removeTask(Task t) {
             tasks.remove(t);
-            for (Task followingTask : tasksAfter.get(t)) {
+            for (Task followingTask : tasksAfter.getOrDefault(t, emptyTaskSet)) {
                 taskDeps.get(followingTask).remove(t);
                 if (canStartNoSync(followingTask))
                     Objects.requireNonNull(pool.get()).submitTask(followingTask);

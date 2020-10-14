@@ -16,19 +16,24 @@
 
 package me.laszloattilatoth.jesher.threadpool;
 
+import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class Task implements Runnable {
     private final AtomicBoolean completed = new AtomicBoolean(false);
-    private final ThreadPool pool;
+    private final WeakReference<ThreadPool> pool;
 
     public Task(ThreadPool pool) {
-        this.pool = pool;
+        this.pool = new WeakReference<>(pool);
         this.completed.set(false);
     }
 
     public boolean isCompleted() {
         return completed.get();
+    }
+
+    protected ThreadPool pool() {
+        return this.pool.get();
     }
 
     @Override
@@ -41,25 +46,25 @@ public abstract class Task implements Runnable {
         }
     }
 
-    public abstract void doRun();
+    protected abstract void doRun();
 
     protected void addNextTask(Task t) {
-        pool.addTaskAfter(t, this);
+        pool().addTaskAfter(t, this);
     }
 
     protected void addNextRunnable(Runnable r) {
-        pool.addAfter(r, this);
+        pool().addAfter(r, this);
     }
 
     protected void addTask(Task t) {
-        pool.addTask(t);
+        pool().addTask(t);
     }
 
     protected void addRunnable(Runnable r) {
-        pool.add(r);
+        pool().add(r);
     }
 
     private void notifyPool() {
-        pool.taskCompleted(this);
+        pool().taskCompleted(this);
     }
 }
