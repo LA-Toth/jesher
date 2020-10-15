@@ -23,11 +23,22 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class ThreadPool {
+    public static int CPU_THREADS = Runtime.getRuntime().availableProcessors();
     private final TaskManager taskManager = new TaskManager(this);
     private final ExecutorService executor;
+    private final int threadCount;
+
+    public ThreadPool() {
+        this(Math.max(1, CPU_THREADS));
+    }
 
     public ThreadPool(int threads) {
-        this.executor = Executors.newFixedThreadPool(threads);
+        this.threadCount = threads;
+        this.executor = Executors.newFixedThreadPool(this.threadCount);
+    }
+
+    public int threadCount() {
+        return threadCount;
     }
 
     public void add(Runnable r) {
