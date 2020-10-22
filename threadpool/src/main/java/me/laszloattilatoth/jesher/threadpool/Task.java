@@ -49,19 +49,19 @@ public abstract class Task implements Runnable {
     protected abstract void doRun();
 
     protected void addNextTask(Task t) {
-        pool().addTaskAfter(t, this);
+        pool().addTask(t, this);
     }
 
     protected void addNextRunnable(Runnable r) {
-        pool().addAfter(r, this);
+        pool().add(r, this);
     }
 
-    protected void addTask(Task t) {
-        pool().addTask(t);
+    protected void addPostProcessorTask(Task t) {
+        pool().addPostProcessorTask(t, this);
     }
 
-    protected void addRunnable(Runnable r) {
-        pool().add(r);
+    protected void addPostProcessorRunnable(Runnable r) {
+        pool().addPostProcessor(r, this);
     }
 
     private void notifyPool() {

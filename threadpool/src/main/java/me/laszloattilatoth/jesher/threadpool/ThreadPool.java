@@ -18,27 +18,25 @@ package me.laszloattilatoth.jesher.threadpool;
 
 import java.lang.ref.WeakReference;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public class ThreadPool {
     public static int CPU_THREADS = Runtime.getRuntime().availableProcessors();
     private final TaskManager taskManager = new TaskManager(this);
-    private final ExecutorService executor;
-    private final int threadCount;
+    private final ThreadPoolExecutor executor;
 
     public ThreadPool() {
         this(Math.max(1, CPU_THREADS));
     }
 
     public ThreadPool(int threads) {
-        this.threadCount = threads;
-        this.executor = Executors.newFixedThreadPool(this.threadCount);
+        this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threads);
     }
 
     public int threadCount() {
-        return threadCount;
+        return executor.getCorePoolSize();
     }
 
     public void add(Runnable r) {
@@ -50,27 +48,46 @@ public class ThreadPool {
 
     public void addTask(Task t) {
         taskManager.addTask(t);
-        submitTask(t);
+        executor.submit(t);
     }
 
-    public void addAfter(Runnable r, Task previous) {
+    void add(Runnable r, Task previous) {
         if (r instanceof Task)
-            addTaskAfter((Task) r, previous);
+            addTask((Task) r, previous);
         else
-            addTaskAfter(new RunnableTask(r, this), previous);
+            addTask(new RunnableTask(r, this), previous);
     }
 
-    public void addTaskAfter(Task t, Task previous) {
-        taskManager.addTaskAfter(t, previous);
+    void addTask(Task t, Task previous) {
+        taskManager.addTask(t, previous);
+    }
+
+    void addPostProcessor(Runnable r, Task currentTask) {
+        if (r instanceof Task)
+            addPostProcessorTask((Task) r, currentTask);
+        else
+            addPostProcessorTask(new RunnableTask(r, this), currentTask);
+    }
+
+    void addPostProcessorTask(Task t, Task currentTask) {
+        taskManager.addPostProcessorTask(t, currentTask);
     }
 
     public void waitAllTask() throws InterruptedException {
+        synchronized (taskManager) {
+            while (taskManager.hasRemainingTask())
+                taskManager.wait();
+        }
+        shutdown();
+    }
+
+    public void shutdown() throws InterruptedException {
         executor.shutdown();
-        executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
     void taskCompleted(Task t) {
-        taskManager.removeTask(t);
+        taskManager.taskCompleted(t);
     }
 
     void submitTask(Task t) {
@@ -79,43 +96,113 @@ public class ThreadPool {
 
     private static class TaskManager {
         private final Set<Task> tasks = new HashSet<>();
-        private final Map<Task, Set<Task>> tasksAfter = new HashMap<>();
-        private final Map<Task, Set<Task>> taskDeps = new HashMap<>();
+        private final Map<Task, Set<Task>> taskChildren = new HashMap<>();
+        private final Map<Task, Task> taskParent = new HashMap<>();
+        private final Map<Task, Set<Task>> taskPostProcessors = new HashMap<>();
         private final WeakReference<ThreadPool> pool;
-        private final Set<Task> emptyTaskSet = new HashSet<>();
 
-        private TaskManager(ThreadPool pool) {this.pool = new WeakReference<>(pool);}
-
-        public synchronized void addTask(Task t) {
-            addTaskNoSync(t);
+        private TaskManager(ThreadPool pool) {
+            this.pool = new WeakReference<>(pool);
+            this.taskChildren.put(null, new HashSet<>());
         }
 
-        private void addTaskNoSync(Task t) {
+        public synchronized void addTask(Task t) {
+            addTaskNoSync(t, null);
+        }
+
+        public synchronized void addTask(Task t, Task parent) {
+            addTaskNoSync(t, parent);
+        }
+
+        public void addTaskNoSync(Task t, Task parent) {
             if (tasks.contains(t))
                 return;
 
             tasks.add(t);
-            tasksAfter.put(t, new HashSet<>());
-            taskDeps.put(t, new HashSet<>());
+            taskChildren.put(t, new HashSet<>());
+            taskPostProcessors.put(t, new HashSet<>());
+            taskParent.put(t, parent);
+            taskChildren.get(parent).add(t);
         }
 
-        synchronized void addTaskAfter(Task t, Task previousTask) {
-            addTaskNoSync(t);
-            tasksAfter.get(previousTask).add(t);
-            taskDeps.get(t).add(previousTask);
+        public synchronized void addPostProcessorTask(Task t, Task currentTask) {
+            taskPostProcessors.get(currentTask).add(t);
         }
 
-        synchronized void removeTask(Task t) {
-            tasks.remove(t);
-            for (Task followingTask : tasksAfter.getOrDefault(t, emptyTaskSet)) {
-                taskDeps.get(followingTask).remove(t);
-                if (canStartNoSync(followingTask))
-                    Objects.requireNonNull(pool.get()).submitTask(followingTask);
+        synchronized void taskCompleted(Task t) {
+            if (hasChildren(t))
+                startNextTasks(t);
+            else if (hasPostProcessors(t))
+                startPostProcessorTasks(t);
+            else
+                updateParents(t);
+
+            if (!hasRemainingTask())
+                notifyAll();
+        }
+
+        private void startNextTasks(Task t) {
+            for (Task followingTask : taskChildren.get(t)) {
+                Objects.requireNonNull(pool.get()).submitTask(followingTask);
             }
         }
 
-        private boolean canStartNoSync(Task t) {
-            return taskDeps.get(t).size() == 0;
+        private void startPostProcessorTasks(Task t) {
+            for (Task pp : taskPostProcessors.get(t)) {
+                addTaskNoSync(pp, t);
+                Objects.requireNonNull(pool.get()).submitTask(pp);
+            }
+        }
+
+        private void updateParents(Task t) {
+            tasks.remove(t);
+            Task parent = t;
+
+            while (taskParent.containsKey(parent)) {
+                Task current = parent;
+                parent = taskParent.get(parent);
+                taskParent.remove(current);
+                taskPostProcessors.remove(current);
+                taskChildren.remove(current);
+
+                if (parent == null)
+                    break;
+
+                taskChildren.get(parent).remove(current);
+
+                Set<Task> postProcessors = taskPostProcessors.get(parent);
+
+                boolean wasPostProcessorTask = postProcessors.contains(current);
+
+                if (wasPostProcessorTask)
+                    postProcessors.remove(current);
+
+                if (hasChildren(parent)) {
+                    // still have submitted tasks, exit from loop to avoid check of postprocessors
+                    // in current or parent tasks
+                    break;
+                }
+
+                if (!wasPostProcessorTask) {
+                    // started by startNextTasks(), and no further sibling nextTask
+                    if (hasPostProcessors(parent)) {
+                        startPostProcessorTasks(parent);
+                        break;
+                    }
+                }
+            }
+        }
+
+        private boolean hasChildren(Task t) {
+            return taskChildren.get(t).size() > 0;
+        }
+
+        private boolean hasPostProcessors(Task t) {
+            return taskPostProcessors.get(t).size() > 0;
+        }
+
+        public boolean hasRemainingTask() {
+            return tasks.size() > 0;
         }
     }
 }
