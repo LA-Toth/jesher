@@ -17,7 +17,11 @@
 package me.laszloattilatoth.jesher.threadpool;
 
 import java.lang.ref.WeakReference;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -37,6 +41,17 @@ public class ThreadPool {
 
     public int threadCount() {
         return executor.getCorePoolSize();
+    }
+
+    public boolean has(Runnable r) {
+        if (r instanceof Task)
+            return hasTask((Task) r);
+        else
+            return false;
+    }
+
+    public boolean hasTask(Task t) {
+        return taskManager.hasTask(t);
     }
 
     public void add(Runnable r) {
@@ -96,6 +111,7 @@ public class ThreadPool {
 
     private static class TaskManager {
         private final Set<Task> tasks = new HashSet<>();
+        private final Set<Task> completedTasks = new HashSet<>();
         private final Map<Task, Set<Task>> taskChildren = new HashMap<>();
         private final Map<Task, Task> taskParent = new HashMap<>();
         private final Map<Task, Set<Task>> taskPostProcessors = new HashMap<>();
@@ -104,6 +120,10 @@ public class ThreadPool {
         private TaskManager(ThreadPool pool) {
             this.pool = new WeakReference<>(pool);
             this.taskChildren.put(null, new HashSet<>());
+        }
+
+        public synchronized boolean hasTask(Task t) {
+            return tasks.contains(t);
         }
 
         public synchronized void addTask(Task t) {
@@ -130,12 +150,14 @@ public class ThreadPool {
         }
 
         synchronized void taskCompleted(Task t) {
-            if (hasChildren(t))
+            completedTasks.add(t);
+            if (hasChildren(t)) {
                 startNextTasks(t);
-            else if (hasPostProcessors(t))
+            } else if (hasPostProcessors(t)) {
                 startPostProcessorTasks(t);
-            else
-                updateParents(t);
+            } else {
+                finishTask(t);
+            }
 
             if (!hasRemainingTask())
                 notifyAll();
@@ -154,28 +176,33 @@ public class ThreadPool {
             }
         }
 
-        private void updateParents(Task t) {
+        private void finishTask(Task t) {
+            if (!completedTasks.contains(t))
+                return;
             tasks.remove(t);
+            completedTasks.remove(t);
             Task parent = t;
 
             while (taskParent.containsKey(parent)) {
                 Task current = parent;
-                parent = taskParent.get(parent);
+                parent = taskParent.get(current);
                 taskParent.remove(current);
+                Set<Task> pps = taskPostProcessors.get(current);
                 taskPostProcessors.remove(current);
+                assert taskChildren.get(current).size() == 0;
                 taskChildren.remove(current);
+                taskChildren.get(parent).remove(current);
 
                 if (parent == null)
                     break;
-
-                taskChildren.get(parent).remove(current);
 
                 Set<Task> postProcessors = taskPostProcessors.get(parent);
 
                 boolean wasPostProcessorTask = postProcessors.contains(current);
 
-                if (wasPostProcessorTask)
+                if (wasPostProcessorTask) {
                     postProcessors.remove(current);
+                }
 
                 if (hasChildren(parent)) {
                     // still have submitted tasks, exit from loop to avoid check of postprocessors
@@ -188,7 +215,13 @@ public class ThreadPool {
                     if (hasPostProcessors(parent)) {
                         startPostProcessorTasks(parent);
                         break;
+                    } else {
+                        tasks.remove(parent);
+                        completedTasks.remove(parent);
                     }
+                } else {
+                    tasks.remove(parent);
+                    completedTasks.remove(parent);
                 }
             }
         }

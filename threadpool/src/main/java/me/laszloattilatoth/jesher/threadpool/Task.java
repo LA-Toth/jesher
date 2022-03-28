@@ -38,6 +38,10 @@ public abstract class Task implements Runnable {
 
     @Override
     public void run() {
+        if (!pool().hasTask(this)) {
+            // TODO: custom exception
+            throw new RuntimeException("Not registered");
+        }
         try {
             doRun();
         } finally {
