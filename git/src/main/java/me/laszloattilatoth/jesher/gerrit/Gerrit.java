@@ -17,8 +17,14 @@
 package me.laszloattilatoth.jesher.gerrit;
 
 import me.laszloattilatoth.jesher.util.Convert;
+import me.laszloattilatoth.jesher.util.Fetcher;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -116,6 +122,21 @@ public class Gerrit {
         } else {
             return getUrl() + pathAndQuery;
         }
+    }
+
+    public String getSshUrl() {
+        return String.format("ssh://%s@%s:%d", sshUser, host, sshPort);
+    }
+
+    /**
+     * Fetch from Gerrit REST API and return as a string containing valid JSON.
+     *
+     * @param pathAndQuery The path and query part of the URL, others come from current object
+     * @return a string containing valid JSON by removing leading 4 dummy chars.
+     * @throws IOException If any error occurs (connection error, read error)
+     */
+    public String fetch(String pathAndQuery) throws IOException {
+        return Fetcher.fetch(new URL(getUrl(pathAndQuery))).substring(4);
     }
 
     public static class Builder {
