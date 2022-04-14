@@ -30,12 +30,15 @@ public record DiffResult(String localCommitId, String upstreamCommitId,
     }
 
     public Map<String, List<String>> toMap(DiffResultKeyProvider keyProvider) {
-
         Map<String, List<String>> result = new HashMap<>();
         result.put(keyProvider.same(), new ArrayList<>(same));
         result.put(keyProvider.different(), new ArrayList<>(different));
         result.put(keyProvider.localOnly(), new ArrayList<>(localOnly));
         result.put(keyProvider.upstreamOnly(), new ArrayList<>(upstreamOnly));
         return result;
+    }
+
+    public boolean isSameAsUpstream() {
+        return !same.isEmpty() && different.isEmpty() && localOnly.isEmpty() && upstreamOnly.isEmpty();
     }
 }
