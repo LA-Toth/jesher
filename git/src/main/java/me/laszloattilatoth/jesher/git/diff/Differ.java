@@ -19,7 +19,6 @@ package me.laszloattilatoth.jesher.git.diff;
 import com.github.difflib.DiffUtils;
 import com.github.difflib.patch.AbstractDelta;
 import com.github.difflib.patch.Patch;
-import me.laszloattilatoth.jesher.git.Git;
 import me.laszloattilatoth.jesher.util.ProcessHelper;
 
 import java.io.BufferedReader;
@@ -44,7 +43,7 @@ public class Differ {
     private final ArrayList<String> resultUpstreamOnly = new ArrayList<>();
 
     public Differ(File repository, String localCommitId, String upstreamCommitId, FilenameMapper filenameMapper) throws IOException {
-        this.repository = new File(Git.repoRoot(repository));
+        this.repository = repository;
         this.localCommitId = localCommitId;
         this.upstreamCommitId = upstreamCommitId;
         this.filenameMapper = filenameMapper;

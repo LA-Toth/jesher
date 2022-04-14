@@ -21,9 +21,9 @@ import java.util.Map;
 
 public class ReviewMessage extends Message {
     public static final String CODE_REVIEW_LABEL = "Code-Review";
-    private int review;
     private final Map<String, Integer> labels = new HashMap<>();
     private final MessagePrefix messagePrefix;
+    private int review;
 
     public ReviewMessage() {
         this(new DefaultMessagePrefix());
@@ -42,7 +42,7 @@ public class ReviewMessage extends Message {
 
     public ReviewMessage addLabel(String label, int value) {
         int previousValue = getLabel(label);
-        if(!shouldUpdateLabel(previousValue, value))
+        if (!shouldUpdateLabel(previousValue, value))
             return this;
         if (label.equals(CODE_REVIEW_LABEL)) review = value;
         else labels.put(label, value);
