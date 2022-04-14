@@ -16,12 +16,15 @@
 
 package me.laszloattilatoth.jesher.util;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 
 public class Convert {
     private Convert() {}
@@ -36,5 +39,15 @@ public class Convert {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         mapper.writeValue(output, o);
         return output.toString(StandardCharsets.UTF_8);
+    }
+
+    public static List fromJsonToList(String s) throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(s, List.class);
+    }
+
+    public static Map fromJsonToMap(String s) throws JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readValue(s, Map.class);
     }
 }
