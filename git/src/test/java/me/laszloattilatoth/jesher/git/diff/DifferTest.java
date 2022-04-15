@@ -47,7 +47,7 @@ class DifferTest {
         assertEquals(RepoCreator.SECOND_BRANCH, result.upstreamCommitId());
         assertEqualsAsSet(Set.of("fourth.txt"), result.different());
         assertEqualsAsSet(Set.of("second.txt"), result.upstreamOnly());
-        assertEqualsAsSet(Set.of("third.txt"), result.same());
+        assertEqualsAsSet(Set.of("third.txt", "first.java"), result.same());
         assertEqualsAsSet(Set.of("sixth.txt", "fifth.txt"), result.localOnly());
 
         assertTrue(mapper.filenames.contains("sixth.txt"));
@@ -55,6 +55,24 @@ class DifferTest {
         // untouched or deleted files are not mapped
         assertFalse(mapper.filenames.contains("first.txt"));
         assertFalse(mapper.filenames.contains("second.txt"));
+    }
+
+    @Test
+    void runWithDefaultMapper(@TempDir Path tempDir) throws IOException, InterruptedException {
+        RepoCreator creator = new RepoCreator(tempDir.toFile());
+        creator.create();
+        creator.cherryPick();
+
+        Mapper mapper = new Mapper();
+
+        Differ differ = new Differ(tempDir.toFile(), RepoCreator.MASTER_BRANCH, RepoCreator.SECOND_BRANCH);
+        DiffResult result = differ.run();
+        assertEquals(RepoCreator.MASTER_BRANCH, result.localCommitId());
+        assertEquals(RepoCreator.SECOND_BRANCH, result.upstreamCommitId());
+        assertEqualsAsSet(Set.of("fourth.txt"), result.different());
+        assertEqualsAsSet(Set.of("second.txt"), result.upstreamOnly());
+        assertEqualsAsSet(Set.of("third.txt", "first.java"), result.same());
+        assertEqualsAsSet(Set.of("sixth.txt", "fifth.txt"), result.localOnly());
     }
 
     private void assertEqualsAsSet(Set<String> expected, List<String> actual) {

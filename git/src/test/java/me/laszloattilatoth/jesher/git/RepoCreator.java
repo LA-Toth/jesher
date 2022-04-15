@@ -56,6 +56,7 @@ public class RepoCreator {
         writeToFile("second.txt", "hello", "world\n");
         writeToFile("third.txt", "", "world\n");
         writeToFile("fourth.txt", "HeLlO", "world\n");
+        writeToFile("first.java", "   HeLlO", "world\n");
         run("git", "add", ".");
         run("git", "commit", "-m", "second commit");
         run("git", "checkout", MASTER_BRANCH);

@@ -39,6 +39,7 @@ public class DiffResultTest {
         assertThat(result.different(), is(different));
         assertThat(result.localOnly(), is(localOnly));
         assertThat(result.upstreamOnly(), is(upstreamOnly));
+        assertThat(result.isSameAsUpstream(), is(false));
     }
 
     @Test
@@ -81,5 +82,25 @@ public class DiffResultTest {
         assertThat(map.get("different"), is(different));
         assertThat(map.get("downstream_only"), is(localOnly));
         assertThat(map.get("upstream_only"), is(upstreamOnly));
+    }
+
+    @Test
+    void isSameAsUpstream() {
+        assertThat(result.isSameAsUpstream(), is(false));
+        assertIsSameAsUpstream(same, List.of(), List.of(), List.of(), true);
+        assertIsSameAsUpstream(same, different, List.of(), List.of(), false);
+        assertIsSameAsUpstream(same, List.of(), localOnly, List.of(), false);
+        assertIsSameAsUpstream(same, List.of(), List.of(), upstreamOnly, false);
+        assertIsSameAsUpstream(List.of(), List.of(), List.of(), List.of(), false); // empty?!?!
+        assertIsSameAsUpstream(List.of(), different, List.of(), List.of(), false);
+        assertIsSameAsUpstream(List.of(), List.of(), localOnly, List.of(), false);
+        assertIsSameAsUpstream(List.of(), List.of(), List.of(), upstreamOnly, false);
+    }
+
+    private void assertIsSameAsUpstream(List<String> same, List<String> different,
+                                        List<String> localOnly, List<String> upstreamOnly,
+                                        boolean expected) {
+        assertThat(new DiffResult("local", "upstreamId", same, different, localOnly, upstreamOnly).isSameAsUpstream(),
+                is(expected));
     }
 }
