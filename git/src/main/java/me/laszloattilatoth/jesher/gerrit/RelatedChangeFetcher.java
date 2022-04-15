@@ -16,11 +16,9 @@
 
 package me.laszloattilatoth.jesher.gerrit;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import me.laszloattilatoth.jesher.util.Convert;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,7 +56,6 @@ public class RelatedChangeFetcher {
         return null;
     }
 
-
     public List<RelatedChange> fetchAsChain(int change, int revision) {
         List<RelatedChange> related = fetch(change, revision);
         if (related == null)
@@ -68,8 +65,7 @@ public class RelatedChangeFetcher {
         Map<String, RelatedChange> commitToRelated = new HashMap<>();
         RelatedChange currentChange = null;
 
-
-        for (RelatedChange c: related) {
+        for (RelatedChange c : related) {
             if (currentChange == null && c.changeNumber() == change && c.revision() == revision) {
                 currentChange = c;
             }

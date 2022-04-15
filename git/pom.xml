@@ -22,4 +22,5 @@
             <artifactId>java-diff-utils</artifactId>
         </dependency>
     </dependencies>
+
 </project>
